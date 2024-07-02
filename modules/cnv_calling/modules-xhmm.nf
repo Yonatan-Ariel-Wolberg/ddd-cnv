@@ -176,8 +176,233 @@ process filterSamples {
     // Specifies script
     script:
     """
+    # Calls XHMM tool
+    # --matrix specifies operation will be on the matrix of read depths
+    # -r specifies the input file
+    # --centerData centers the data to adjust for biases
+    # --centerType target specifies that centering should be done based on targets
     xhmm --matrix -r DATA.RD.txt --centerData --centerType target \
-        -o DATA.filtered_centered.RD.txt \
-        --outputExcludedTargets DATA.filtered_centered.RD.txt.filtered_targets.txt
+        -o DATA.filtered_centered.RD.txt \   # Specifies output file
+        --outputExcludedTargets DATA.filtered_centered.RD.txt.filtered_targets.txt \   # Specifies output file for list of excluded targets
+        --outputExcludedSamples DATA.filtered_centered.RD.txt.filtered_samples.txt \   # Specifies output file for list of excluded samples
+        --excludeTargets extreme_gc_targets.txt \   # Excludeds targets listed in the given file from analysis
+        --minTargetSize 10 --maxTargetSize 10000 \   # Specifies min and max target sizes
+        --minMeanTargetRD 10 --maxMeanTargetRD 500 \   # Specifies min and max read depths for targets
+        --minMeanSampleRD 25 --maxMeanSampleRD 200 \   # Specifies min and max read depths for samples
+        --maxSdSampleRD 150   # Specifies the max standard deviation of read depth for samples
+    """
+}
+
+// RUNS PCA ON MEAN_CENTERED DATA:
+process runPCA {
+    // Tags process as 'run_pca'
+    tag { 'run_pca' }
+
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies input
+    input:
+    path(filtered_centered)
+
+    // Specifies output
+    output:
+    tuple val("pca_data"), path("DATA.RD_PCA*"), emit: pca_data
+
+    // Specifies script
+    script:
+    """
+    # xhmm --PCA runs PCA operation by XHMM tool
+    # -r  specifies input data
+    # --PCAfiles specifies the prefix for the output files related to PCA
+    xhmm --PCA -r DATA.filtered_centered.RD.txt --PCAfiles DATA.RD_PCA
+    """
+}
+
+// NORMALIZES MEAN-CENTERED DATA USING PCA INFORMATION:
+process normalisePCA {
+    // Tags process as 'norm_pca'
+    tag { 'norm_pca' }
+
+    // Label process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(filtered_centered)
+    tuple val(pca), path(pca_data)
+
+    // Specifies output
+    output:
+    path("DATA.PCA_normalized.txt"), emit: data_pca_norm
+
+    // Specifies script
+    script:
+    """
+    # xhmm --normalize specifies that the operation to be performed by xhmm is normalization
+    # -r specifies the input data
+    xhmm --normalize -r DATA.filtered_centered.RD.txt \
+        --PCAfiles DATA.RD_PCA \   # Specifies the prefix for the PCA output files generated in the previous PCA step
+        --normalizeOutput DATA.PCA_normalized.txt \   # Specifies the output file for the normalzied read depth data
+        --PCnormalizeMethod PVE_mean --PVE_mean_factor 0.7 # Specifies normalization method to be used (Proportion of Variance Explained mean) and the factor to use for said method (0.7)
+    """
+}
+
+// FILTERS AND Z_SCORE CENTERS (BY SAMPLE) THE PCA-NORMALIZED DATA:
+process filterZScore {
+    // Tags process as 'filter_zscore'
+    tag { 'filter_zscore' }
+
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(data_pca_norm)
+
+    // Specifies output
+    output:
+    path("DATA.PCA_normalized.filtered.sample_zscores.RD.txt"), emit: pca_norm_zscore
+    path("DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_targets.txt"), emit: excluded_zscore_targets
+    path("DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_samples.txt"), emit: excluded_zscore_samples
+
+    // Specifies script
+    script:
+    """
+    xhmm --matrix -r DATA.PCA_normalized.txt   #  Calls xhmm tool and specifies that operation is matrix of read depths
+        --centerData --centerType sample --zScoreData \   # Centers data based on samples  and Z-scores the data to standardize it
+        -o DATA.PCA_normalized.filtered.sample_zscores.RD.txt \   # Specifies output file
+        --outputExcludedTargets DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_targets.txt \   # Specifies output for list of excluded targets
+        --outputExcludedSamples DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_samples.txt \   # Specifies output for list of excluded samples
+        --maxSdTargetRD 30   # Excludes targets with a standard deviation greater than 30
+    """
+}
+
+// FILTERS ORIGINAL READ-DEPTH DATA TO BE THE SAME AS FILTERED, NORMALIZED DATA:
+process filterRD {
+    // Tags process as 'filter_rd'
+    tag { 'filter_rd' }
+
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(combined_doc)
+    path(excluded_filtered_targets)
+    path(excluded_zscore_targets)
+    path(excluded_filtered_samples)
+    path(excluded_zscore_samples)
+
+    // Specifies output
+    output:
+    path("DATA.same_filtered.RD.txt"), emit: orig_filtered
+
+    // Specifies script
+    script:
+    """
+    xhmm --matrix -r DATA.RD.txt \   # Calls XHMM and specifies tool will be matrix of read depths
+        --excludeTargets DATA.filtered_centered.RD.txt.filtered_targets.txt \   # Excludes targets listed in this file
+        --excludeTargets DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_targets.txt \   # Excludes targets listed in this file
+        --excludeSamples DATA.filtered_centered.RD.txt.filtered_samples.txt \   # Excludes samples listed in this file
+        --excludeSamples DATA.PCA_normalized.filtered.sample_zscores.RD.txt.filtered_samples.txt \   # Excludes samples listed in this file
+        -o DATA.same_filtered.RD.txt   # Specifies the output file
+    """
+}
+
+// DISCOVERS CNVS IN NORMALIZED DATA:
+process discoverCNVs {
+    // Tags process as 'discover_cnvs'
+    tag { 'discover_cnvs' }
+
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(orig_filtered)
+    path(pca_norm_zscore)
+
+    // Specifies output
+    output:
+    path("*"), emit: cnvs
+    
+    script:
+    """
+    xhmm --discover -p ${xhmm_conf} \   # Calls XHMM to discover CNVs with the required configuration file
+        -r DATA.PCA_normalized.filtered.sample_zscores.RD.txt \   # Specifies input file containing the PCA-normalized and z-scored read depth data
+        -R DATA.same_filtered.RD.txt \   # Specifies input file containing the same filtered read depth data
+        -c DATA.xcnvv -a DATA.aux_xcnv -s DATA   # Specifies output files for the discovered CNVs, auxiliary CNV info and additional data files generated during the CNV discovery process with the prefix 'DATA'
+    """
+}
+
+// GENOTYPES DISCOVERED CNVS IN ALL SAMPLES:
+process genotypeCNVs {
+    // Tags process as 'genotype_cnvs'
+    tag { 'genotype_cnvs' }
+    
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(orig_filtered)
+    path(pca_norm_zscore)
+    path(cnvs)
+
+    // SPecifies output
+    output:
+    path("*"), emit: genotypes
+
+    // Specifies output
+    script:
+    """
+    xhmm --genotype -p ${xhmm_conf} \   # Calls XHMM to genotype CNVs with the required configuration file
+        -r DATA.PCA_normalized.filtered.sample_zscores.RD.txt \   # Specifies input file containing the PCA_normalized and z_scored read depth data
+        -R DATA.same_filtered.RD.txt \   # Specifies input file containing the same filtered read depth data
+        -g DATA.xcnv -F ${ref} \   # Specifies input file containing the discovered CNVs to be genotyped and the reference genome
+        -v DATA.vcf   # Specifies output file in VCF format containing the genotyped CNVs
+    """
+}
+
+// FILTERS CNVS CALLED BY XHMM
+process filterXHMMCNVs {
+    // Tags process as 'filter_cnvs'
+    tag { 'filter_cnvs' }
+
+    // Labels process as 'xhmm'
+    label 'xhmm'
+
+    // Specifies destination directory where output files are to be published
+    publishDir "${outdir}/out_XHMM", mode: 'copy', overwrite: true
+
+    // Specifies input
+    input:
+    path(cnvs)
+
+    // Specifies output
+    output:
+    path("DATA_filtered.xcnv"), emit: filtered_cnvs
+
+    // Specifies script
+    script:
+    """
+    # Filters DATA.xcnv files that have Q_SOME = or > 60, Q_NON_DIPLOID = or > 60, and Q_START = or > 60
+    awk '{ if( (\$9>=60) && (\$10>=60) && (\$11>=60) ) { print } }' DATA.xcnv > DATA_filtered.xcnv
     """
 }
