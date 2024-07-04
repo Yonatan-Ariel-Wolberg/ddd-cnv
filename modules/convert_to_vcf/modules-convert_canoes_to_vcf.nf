@@ -23,6 +23,6 @@ process canoes_to_vcf {
     // Specifies script
     script:
     """
-    python ddd-cnv/bin/convert_canoes_to_vcf.py ${outdir}/out_CANOES/Sample_CNVs_filtered.csv ${outdir}/out_CANOES
+    python ddd-cnv/bin/convert_canoes_to_vcf.py ${outdir}/out_CANOES/CANOES_CNVs_filtered.csv ${outdir}/out_CANOES
     """
 }

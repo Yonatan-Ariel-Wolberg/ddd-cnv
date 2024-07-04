@@ -23,6 +23,6 @@ process clamms_to_vcf {
     // Specifies script
     script:
     """
-    python ddd-cnv/bin/convert_clamms_to_vcf.py ${outdir}/out_CLAMMS/samples.cnv.filtered.bed ${outdir}/out_CLAMMS
+    python ddd-cnv/bin/convert_clamms_to_vcf.py ${outdir}/out_CLAMMS/CLAMMS.cnv.filtered.bed ${outdir}/out_CLAMMS
     """
 }
