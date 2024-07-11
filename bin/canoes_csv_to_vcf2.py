@@ -5,7 +5,6 @@ import csv
 import os
 
 def convert_canoes_csv_to_vcf(input_file, output_file):
-    
     # Create the directory if it doesn't exist
     output_dir = os.path.dirname(output_file)
     if output_dir and not os.path.exists(output_dir):
@@ -19,8 +18,8 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
         # Print CSV headers for debugging
         print("CSV headers:", csvreader.fieldnames)
         
-        # Cheack if all required columns are present
-        required_columns = ['SAMPLE', 'CNV', 'INTERVAL', 'KB', 'CHR', 'MID_BP', 'TARGETS', 'NUM_TARG','MLCN', 'Q_SOME']
+        # Check if all required columns are present
+        required_columns = ['SAMPLE', 'CNV', 'INTERVAL', 'KB', 'CHR', 'MID_BP', 'TARGETS', 'NUM_TARG', 'MLCN', 'Q_SOME']
         missing_columns = [col for col in required_columns if col not in csvreader.fieldnames]
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
@@ -32,7 +31,7 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
             vcf_file.write("##source=CustomBedToVcfConverter\n")
             vcf_file.write("##ALT=<ID=DEL,Description=\"Deletion\">\n")
             vcf_file.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
-            vcf_file.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the the structural variant\">\n")
+            vcf_file.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the structural variant\">\n")
             vcf_file.write("##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">\n")
             vcf_file.write("##INFO=<ID=PRECISE,Number=0,Type=Flag,Description=\"Precise structural variation\">\n")
             vcf_file.write("##INFO=<ID=SVLEN,Number=1,Type=Float,Description=\"Length of the SV\">\n")
@@ -43,29 +42,30 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
             vcf_file.write("##INFO=<ID=STRANDS,Number=1,Type=String,Description=\"Indicating the direction of the reads with respect to the type and breakpoint\">\n")
             vcf_file.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
             
-            
-            
             # Get the sample IDs from the CSV file
             sample_ids = set()
-            # Read each row from the CSV file
             for row in csvreader:
                 try:
-                    # Get unique sample IDs from 'SAMPLE' column
                     sample_ids.add(row['SAMPLE'])
+                except KeyError as e:
+                    print(f"Key error: {e}")
+                    continue
 
-                    # Convert set to sorted list
-                    sample_ids = sorted(sample_ids)
-                    
-                    # Reset pointer to the beginning of file
-                    csvfile.seek(0)
+            # Convert set to sorted list
+            sample_ids = sorted(sample_ids)
 
-                    # Write the sample-specific fields after the FORMAT field
-                    vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t")
-                    for sample_id in sample_ids:
-                        vcf_file.write(f"{sample_id}\t")
-                    vcf_file.write("\n")
-                    
-                    # Extract fields from the row
+            # Write the sample-specific fields after the FORMAT field
+            vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+            for sample_id in sample_ids:
+                vcf_file.write(f"\t{sample_id}")
+            vcf_file.write("\n")
+            
+            # Reset pointer to the beginning of file
+            csvfile.seek(0)
+            
+            # Process each row in the CSV file
+            for row in csvreader:
+                try:
                     sample = row['SAMPLE']
                     cnv = row['CNV']
                     interval = row['INTERVAL']
@@ -96,13 +96,16 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
                     strands = '.'
                 
                     # Calculate FILTER status
-                    if int(kb) >= 100 and int(q_some) >= 80:
+                    if kb >= 100 and int(q_some) >= 80:
                         filter_status = 'PASS'
-                    elif int(kb) < 100 and int(q_some) < 80:
+                    elif kb < 100 and int(q_some) < 80:
                         filter_status = 'LowQuality'
                     else:
                         filter_status = '.'
                     
+                    # Calculate QUAL value
+                    qual = q_some
+
                     # Calculate FORMAT values
                     if cn == '3':
                         format_values = '0/1'
@@ -112,9 +115,18 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
                         format_values = '0/0'
                     else:
                         format_values = '.'
-                
+                    
                     # Write the VCF entry
-                    vcf_file.write(f"{chr}\t{start}\t.\tN\t{cnv}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE=CNV;CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\n")
+                    vcf_file.write(f"chr{chr}\t{start}\t.\tN\t{cnv}\t{qual}\t{filter_status}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE=CNV;CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\t")
+                    
+                    # Write sample-specific data
+                    for sample_id in sample_ids:
+                        if sample == sample_id:
+                            vcf_file.write(f"{format_values}:{q_some if q_some else 0}\t")
+                        else:
+                            vcf_file.write(".\t")
+                    
+                    vcf_file.write("\n")
 
                 except KeyError as e:
                     print(f"Key error: {e}")
