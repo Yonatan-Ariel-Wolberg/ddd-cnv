@@ -2,8 +2,15 @@
 
 import argparse
 import csv
+import os
 
 def convert_canoes_csv_to_vcf(input_file, output_file):
+    
+    # Create the directory if it doesn't exist
+    output_dir = os.path.dirname(output_file)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     # Open input file in read mode
     with open(input_file, 'r') as csvfile:
         # Create a CSV reader object
@@ -36,9 +43,28 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
             vcf_file.write("##INFO=<ID=STRANDS,Number=1,Type=String,Description=\"Indicating the direction of the reads with respect to the type and breakpoint\">\n")
             vcf_file.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
             
+            
+            
+            # Get the sample IDs from the CSV file
+            sample_ids = set()
             # Read each row from the CSV file
             for row in csvreader:
                 try:
+                    # Get unique sample IDs from 'SAMPLE' column
+                    sample_ids.add(row['SAMPLE'])
+
+                    # Convert set to sorted list
+                    sample_ids = sorted(sample_ids)
+                    
+                    # Reset pointer to the beginning of file
+                    csvfile.seek(0)
+
+                    # Write the sample-specific fields after the FORMAT field
+                    vcf_file,write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t")
+                    for sample_id in sample_ids:
+                        vcf_file.write(f"{sample_id}\t")
+                    vcf_file.write("\n")
+                    
                     # Extract fields from the row
                     sample = row['SAMPLE']
                     cnv = row['CNV']
@@ -91,7 +117,7 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
                     qual = '.'
                 
                     # Write the VCF entry
-                    vcf_file.write(f"{chr}\t{start}\t.\tN\t{cnv}\t.\t{filter_status};{q_some_filter}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE={cnv};CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\n")
+                    vcf_file.write(f"{chr}\t{start}\t.\tN\t{cnv}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE=CNV;CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\n")
 
                 except KeyError as e:
                     print(f"Key error: {e}")
