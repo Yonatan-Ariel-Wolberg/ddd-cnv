@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import argparse
 import csv
 
@@ -5,8 +7,17 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
     # Open input file in read mode
     with open(input_file, 'r') as csvfile:
         # Create a CSV reader object
-        csvreader = csv.DictReader(csvfile)
+        csvreader = csv.DictReader(csvfile, delimiter='\t')
+
+        # Print CSV headers for debugging
+        print("CSV headers:", csvreader.fieldnames)
         
+        # Cheack if all required columns are present
+        required_columns = ['SAMPLE', 'CNV', 'INTERVAL', 'KB', 'CHR', 'MID_BP', 'TARGETS', 'NUM_TARG','MLCN', 'Q_SOME']
+        missing_columns = [col for col in required_columns if col not in csvreader.fieldnames]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
         # Open output file in write mode
         with open(output_file, 'w') as vcf_file:
             # Write VCF header
@@ -27,59 +38,65 @@ def convert_canoes_csv_to_vcf(input_file, output_file):
             
             # Read each row from the CSV file
             for row in csvreader:
-                # Extract fields from the row
-                sample = row['SAMPLE']
-                cnv = row['CNV']
-                interval = row['INTERVAL']
-                kb = row['KB']
-                chr = row['CHR']
-                mid_bp = row['MID_BP']
-                targets = row['TARGETS']
-                num_targ = row['NUM_TARG']
-                cn = row['MLCN']
-                q_some = row['Q_SOME']
+                try:
+                    # Extract fields from the row
+                    sample = row['SAMPLE']
+                    cnv = row['CNV']
+                    interval = row['INTERVAL']
+                    kb = float(row['KB'])
+                    chr = row['CHR']
+                    mid_bp = row['MID_BP']
+                    targets = row['TARGETS']
+                    num_targ = row['NUM_TARG']
+                    cn = row['MLCN']
+                    q_some = row['Q_SOME']
                 
-                # Check if the chr is equal to the number before ':' in the interval field
-                if chr != interval.split(':')[0]:
-                    print("Error: chr is not equal to the number before ':' in the INTERVAL field")
-                    continue
+                    # Check if the chr is equal to the number before ':' in the interval field
+                    if chr != interval.split(':')[0]:
+                        print("Error: chr is not equal to the number before ':' in the INTERVAL field")
+                        continue
                 
-                # Calculate start and end positions
-                start, end = map(int, interval.split(':')[1].split('-'))
+                    # Calculate start and end positions
+                    start, end = map(int, interval.split(':')[1].split('-'))
                 
-                # Calculate length of the SV
-                svlen = end - start
+                    # Calculate length of the SV
+                    svlen = end - start
                 
-                # Calculate confidence interval around POS and END
-                ci_pos = (0, 0)
-                ci_end = (0, 0)
+                    # Calculate confidence interval around POS and END
+                    ci_pos = (0, 0)
+                    ci_end = (0, 0)
                 
-                # Calculate STRANDS
-                strands = '.'
+                    # Calculate STRANDS
+                    strands = '.'
                 
-                # Calculate FILTER status
-                if int(kb) >= 100 and int(q_some) >= 80:
-                    filter_status = 'PASS'
-                elif int(kb) < 100 and int(q_some) < 80:
-                    filter_status = 'LowQuality'
-                else:
-                    filter_status = '.'
+                    # Calculate FILTER status
+                    if int(kb) >= 100 and int(q_some) >= 80:
+                        filter_status = 'PASS'
+                    elif int(kb) < 100 and int(q_some) < 80:
+                        filter_status = 'LowQuality'
+                    else:
+                        filter_status = '.'
                     
-                # Calculate FORMAT values
-                if cn == '3':
-                    format_values = '0/1'
-                elif cn == '1':
-                    format_values = '0/1'
-                elif cn == '2':
-                    format_values = '0/0'
-                else:
-                    format_values = '.'
+                    # Calculate FORMAT values
+                    if cn == '3':
+                        format_values = '0/1'
+                    elif cn == '1':
+                        format_values = '0/1'
+                    elif cn == '2':
+                        format_values = '0/0'
+                    else:
+                        format_values = '.'
                     
-                # Calculate QUAL
-                qual = '.'
+                    # Calculate QUAL
+                    qual = '.'
                 
-                # Write the VCF entry
-                vcf_file.write(f"{chr}\t{start}\t.\tN\t{cnv}\t.\t{filter_status};{q_some_filter}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE={cnv};CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\n")
+                    # Write the VCF entry
+                    vcf_file.write(f"{chr}\t{start}\t.\tN\t{cnv}\t.\t{filter_status};{q_some_filter}\tEND={end};SVLEN={svlen};SVMETHOD=CANOES;SVTYPE={cnv};CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME\t{format_values}:{q_some if q_some else 0}\n")
+
+                except KeyError as e:
+                    print(f"Key error: {e}")
+                except ValueError as e:
+                    print(f"Value error: {e}")
 
 # Main function execution
 if __name__ == "__main__":
