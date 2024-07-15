@@ -1,140 +1,283 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-# CODE THAT CONVERTS CLAMMS OUTPUT BED FILE TO VCF
-
-# Imports os module for file operations
-import os
-
-# Imports sys module for system functions
-import sys
-
-# Imports re module for regular expressions
-import re
-
-# Imports argparse module for argument parsing
+# Import 'argparse' module for parsing command-line arguments specifying input and output files
 import argparse
 
-# Defines function call 'convert_clamms_to_vcf'
-def convert_clamms_to_vcf(bed_file, vcf_file):
-    
-    # Takes BED file as input for reading and VCF file as output for writing
-    with open(bed_file, 'r') as infile, open(vcf_file, 'w') as outfile:
+# Import 'os' module for file and directory operations
+import os
+
+# Import 'logging' module to provide informative messages about the scripts exectution, such as errors, warnings and general information
+import logging
+
+
+
+def setup_logging():
+    """
+    Set up logging configuration
+    """
+    # Set logging level to 'INFO', ignoring 'DEBUG' messages
+    # 'format' specifies the time when the log message is created, the severity level of the log and an actual log message provided by the code
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+
+def validate_input_file(input_file):
+    """
+    Validate that the input file exists and is readable.
+    """
+    # Function checks if path specified by input file is an existing regular file
+    if not os.path.isfile(input_file):
         
-        # Writes header 
-        # Specifies file format as VCF format
-        print("Writing VCF header")
-        outfile.write("##fileformat=VCFv4.1\n")
-
-        # Specifies source as 'CustomBedToVcfConverter'
-        outfile.write("##source=CustomBedToVcfConverter\n")
-
-        # Describes a deletion event
-        outfile.write("##ALT=<ID=DEL,Description=\"Deletion\">\n")
-
-        # Describes a duplication event
-        outfile.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
-
-        # Describes an inversion event
-        outfile.write("##ALT=<ID=INV,Description=\"Inversion\">\n")
-
-        # Describes a translocation event
-        outfile.write("##ALT=<ID=BND,Description=\"Translocation\">\n")
-
-        # Describes an insertion event
-        outfile.write("##ALT=<ID=INS,Description=\"Insertion\">\n")
-
-        # Provides the chromosome for the END coordinate in case of a translocation
-        outfile.write("##INFO=<ID=CHR2,Number=1,Type=String,Description=\"Chromosome for END coordinate in case of a translocation\">\n")
-
-        # Provides the end position for the structural variant
-        outfile.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the the structural variant\">\n")
-
-        # Describes an imprecise structural variation
-        outfile.write("##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description\"Imprecise structural variation\">\n")
-
-        # Describes a precise structural variation
-        outfile.write("##INFO=<ID=PRECISE,Number=0,Type=Flag,Description=\"Precise structural variation\">\n")
-
-        # Provides the length of the structural variant
-        outfile.write("##INFO=<ID=SVLEN,Number=1,Type=Float,Description=\"Length of the SV\">\n")
-
-        # Provides the method used to identify the SV
-        outfile.write("##INFO=<ID=SVMETHOD,Number=1,Type=String,Description=\"Vector of samples supporting the SV\">\n")
-
-        # Provides the type of the SV
-        outfile.write("##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of the SV\">\n")
-
-        # Provides the confidence interval around POS
-        outfile.write("##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS\">\n")
-
-        # Provides the confidence interval around END
-        outfile.write("##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END\">\n")
-
-        # Provides the direction of the reads
-        outfile.write("##INFO=<ID=STRANDS,Number=1,Type=String,Description=\"Indicating the direction of the reads with respect to the type and breakpoint\">\n")
-
-        # Describes the genotype format
-        outfile.write("FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
-
-        # Writes CHROM, POS, ID, REF, ALT, QUAL, FILTER, and INFO fields
-        outfile.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+        # If the path doesn't exist or is not a regular file, raise an error
+        logging.error(f"Input file '{input_file}' not found.")
         
-        # Loops through each line of BED file
-        for line in infile:
+        # Raise FileNotFoundError exception
+        raise FileNotFoundError(f"Input file '{input_file}' not found.")
 
-            # Prints line being processed to console for debugging
-            print(f"Processing line: {line}")
+
+
+def create_output_directory(output_file):
+    """
+    Create the output directory if it doesn't exist.
+    """
+    # Returns the directory name of the path
+    output_dir = os.path.dirname(output_file)
+
+    # If the output directory doesn't exist, create it
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+
+
+def convert_clamms_bed_to_vcf(input_file, output_file):
+    """
+    Convert CLAMMS BED format to VCF format.
+
+    Args:
+    - input_file (str): Path to the input CLAMMS BED file.
+    - output_file (str): Path to the output VCF file.
+
+    """
+    try:
+        # Create the output directory if it doesn't exist
+        create_output_directory(output_file)
+
+        # Dictionary to store mutations grouped by SAMPLE ID
+        mutations_by_sample = {}
+
+        # Open input file in read mode
+        with open(input_file, 'r') as bedfile:
+            # Read each line from the BED file
+            for line_number, line in enumerate(bedfile, start=1):
+                try:
+                    # Split the line into fields
+                    fields = line.strip().split('\t')
+                    
+                    # Extract fields from the BED format
+                    chrom = fields[0]
+                    start = int(fields[1])
+                    end = int(fields[2])
+                    interval = fields[3]  # Assuming the interval format is chr:start-end
+                    sample_id = fields[4]
+                    cnv_type = fields[5]
+                    mlcn = int(fields[6])
+                    num_windows = int(fields[7])
+                    q_some = float(fields[8])
+                    q_exact = float(fields[9])  # Add Q_EXACT field
+                    
+                    # Filter based on Q_EXACT and Q_SOME
+                    if q_exact > 0 and q_some >= 500:
+                        filter_status = 'PASS'
+                    else:
+                        filter_status = 'LowQuality'
+
+                    # Initialize the mutation dictionary
+                    mutation = {
+                        'CHROM': chrom,
+                        'START': start,
+                        'END': end,
+                        'INTERVAL': interval,
+                        'SAMPLE_ID': sample_id,
+                        'CNV': cnv_type,
+                        'MLCN': mlcn,
+                        'NUM_WINDOWS': num_windows,
+                        'Q_SOME': q_some,
+                        'Q_EXACT': q_exact,
+                        'FILTER_STATUS': filter_status
+                    }
+
+                    # Check if sample ID is already in the dictionary
+                    if sample_id not in mutations_by_sample:
+
+                        # Initializes a new list for that sample ID
+                        mutations_by_sample[sample_id] = []
+
+                    # Append mutation to the corresponding sample list
+                    mutations_by_sample[sample_id].append(mutation)
+
+
+                # Catch any IndexError exceptions and log them
+                except IndexError:
+                    logging.error(f"Error: Insufficient fields in line {line_number}: {line}")
+                
+                # Catch any ValueError or TypeError exceptions and log them
+                except (ValueError, TypeError) as e:
+                    logging.error(f"Error: Invalid field value in line {line_number}: {e}")
+
+
+        # Write all mutations to a single VCF file maintaining sample order
+        if mutations_by_sample:
+            write_vcf_file(output_file, mutations_by_sample)
+        else:
+            # If no mutations were found, log a warning
+            logging.warning("No mutations found in the input file.")
+
+    # Catch any IOError exceptions and log them
+    except IOError as e:
+        logging.error(f"Error reading or writing file: {e}")
+
+    # Catch any Exception exceptions and log them
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+
+
+
+def write_vcf_file(output_file, mutations_by_sample):
+    """
+    Write mutations grouped by SAMPLE ID to a VCF file.
+
+    Args:
+    - output_file (str): Path to the output VCF file.
+    - mutations_by_sample (dict): Dictionary containing mutations grouped by SAMPLE ID.
+
+    """
+    try:
+        # Open output file in write mode
+        with open(output_file, 'w') as vcf_file:
+            # Write VCF header
+            vcf_file.write("##fileformat=VCFv4.1\n")
+            vcf_file.write("##source=CLAMMSBedToVcfConverter\n")
+            vcf_file.write("##ALT=<ID=DEL,Description=\"Deletion\">\n")
+            vcf_file.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
+            vcf_file.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the structural variant\">\n")
+            vcf_file.write("##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Length of the SV\">\n")
+            vcf_file.write("##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number of the SV\">\n")
+            vcf_file.write("##INFO=<ID=SVMETHOD,Number=1,Type=String,Description=\"Tool used for calling SV\">\n")
+            vcf_file.write("##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of the SV\">\n")
+            vcf_file.write("##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS\">\n")
+            vcf_file.write("##INFO=<ID=STRANDS,Number=1,Type=String,Description=\"Strand orientation of the SV\">\n")
+            vcf_file.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
+            vcf_file.write("##FORMAT=<ID=Q_SOME,Number=1,Type=Float,Description=\"Phred-scaled quality of the CNV call\">\n")
+            vcf_file.write("##FORMAT=<ID=Q_EXACT,Number=1,Type=Float,Description=\"Non-Phred-scaled quality of the CNV call\">\n")
             
-            # Strips any leading/trailing whitespace from the line and splits it into fields based on tabs
-            fields = line.strip().split('\t')
-            
-            # Assigns each field to a variable
-            chrom, start, end, interval, sample, type, cn, num_window, q_some, q_exact, q_left_extend, left_extend_coord, q_right_extend, right_extend_coord, q_left_contract, left_contract_coord, q_right_contract, right_contract_coord = fields
-            
-            # Converts start and end coordinates to integers
-            start = int(start)
-            end = int(end)
+            # Write sample-specific fields after the FORMAT field
+            vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
 
-            # Sets the ID for the VCF entry
-            id_ = fields[4]
+            # Write sample IDs as column headers in the order they appear in the BED file
+            for sample_id in mutations_by_sample:
+                vcf_file.write(f"\t{sample_id}")
+            vcf_file.write("\n")
 
-            # Sets the REF and ALT fields for the VCF entry
-            ref = 'N'
-            alt = '<' + type + '>'
+            # Process mutations for each sample in order
+            for sample_id in mutations_by_sample:
+                # For each sample ID, this line retrieves a list of mutations associated with that sample ID and assigns it to the variable 'mutations'
+                mutations = mutations_by_sample[sample_id]
+                
+                # Process each mutation for the current sample
+                for mutation in mutations:
+                    try:
+                        chrom = mutation['CHROM']
+                        start = mutation['START']
+                        end = mutation['END']
+                        interval = mutation['INTERVAL']
+                        sample_id = mutation['SAMPLE_ID']
+                        cnv_type = mutation['CNV']
+                        mlcn = mutation['MLCN']
+                        num_windows = mutation['NUM_WINDOWS']
+                        q_some = mutation['Q_SOME']
+                        q_exact = mutation['Q_EXACT']
+                        
+                        # Calculate SV length
+                        svlen = end - start
+                        
+                        # Calculate confidence intervals
+                        ci_pos = (0, 0)  # Placeholder for now
+                        strands = '.'    # Placeholder for now
+                        
+                        # Determine SV type based on CNV type
+                        svtype = 'CNV' if cnv_type == 'DEL' or cnv_type == 'DUP' else cnv_type
+                        
+                        # Calculate FILTER status based on Q_EXACT and Q_SOME
+                        if q_exact > 0 and q_some >= 500:
+                            filter_status = 'PASS'
+                        else:
+                            filter_status = 'LowQuality'
+                        
+                        # Determine FORMAT value based on mlcn
+                        if mlcn == 3:
+                            format_value = '0/1'  # Example, adjust as per your logic
+                        elif mlcn == 1:
+                            format_value = '0/1'  # Example, adjust as per your logic
+                        elif mlcn == 2:
+                            format_value = '0/0'  # Example, adjust as per your logic
+                        elif mlcn == 0:
+                            format_value = '1/1'  # Example, adjust as per your logic
+                        else:
+                            format_value = '.'    # Example, adjust as per your logic
+                        
+                        # Write the VCF entry
+                        vcf_file.write(f"chr{chrom}\t{start}\t.\tN\t<{svtype}>\t.\t{filter_status}\tEND={end};SVLEN={svlen};CN={mlcn};SVMETHOD=CLAMMS;SVTYPE={svtype};CIPOS={ci_pos};STRANDS={strands}\tGT:Q_SOME:Q_EXACT")
+                        
+                        # Write FORMAT values for each sample
+                        for sid in mutations_by_sample:
+                            if sid == sample_id:
+                                vcf_file.write(f"\t{format_value}:{q_some}:{q_exact}")
+                            else:
+                                vcf_file.write("\t0/0:0:0")
 
-            # Sets the QUAL field for the VCF entry to Q_SOME
-            qual = q_some
+                        vcf_file.write("\n")
 
-            # Sets the FILTER field for the VCF entry to PASS or LowQuality based on Q_EXACT
-            filter = 'PASS' if q_exact >= 0 else 'LowQuality'
+                    # Catch any KeyError exceptions and log them
+                    except KeyError as e:
+                        logging.error(f"Key error in mutation: {e}")
 
-            # Constructs the INFO field with info about SV type, copy number, sample, number of windows in call, Q_SOME, Q_EXACT, Q_LEFT_EXTEND, LEFT_EXTEND_COORD, Q_RIGHT_EXTEND, RIGHT_EXTEND_COORD, Q_LEFT_CONTRACT, LEFT_CONTRACT_COORD, Q_RIGHT_CONTRACT, RIGHT_CONTRACT_COORD
-            info = f'SVTYPE=CNV;CN={cn};SAMPLE={sample};NUM_WINDOW={num_window};Q_SOME={q_some};Q_EXACT={q_exact};Q_LEFT_EXTEND={q_left_extend};LEFT_EXTEND_COORD={left_extend_coord};Q_RIGHT_EXTEND={q_right_extend};RIGHT_EXTEND_COORD={right_extend_coord};Q_LEFT_CONTRACT={q_left_contract};LEFT_CONTRACT_COORD={left_contract_coord};Q_RIGHT_CONTRACT={q_right_contract};RIGHT_CONTRACT_COORD={right_contract_coord}'
-            
-            # Formats the VCF entry as a tab-separated string
-            vcf_line = f'{chrom}\t{start}\t{id_}\t{ref}\t{alt}\t{qual}\t{filter}\t{info}\n'
-            
-            # Prints the VCF line being written to the console for debugging
-            print(f"Writing line: {vcf_line}")
-            
-            # Writes formatted VCF line to the output file
-            outfile.write(vcf_line)
+                    # Catch any ValueError exceptions and log them
+                    except ValueError as e:
+                        logging.error(f"Value error in mutation: {e}")
+   
+    # Catch any IOError exceptions and log them
+    except IOError as e:
+        logging.error(f"Error reading or writing file: {e}")
+   
+    # Catch any other unexpected exceptions and log them
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
 
-# Main function execution
-# Script only run if executedas the main module
+
+# Main function
+# Script must be executed directly
 if __name__ == "__main__":
-    
-    # Creates an argument parser object with a description of the script
-    parser = argparse.ArgumentParser(description="Convert CLAMMS output BED file to VCF file.")
-    
-    # Adds a positional argument for the input BED file
-    parser.add_argument("bed_file", help="Input CLAMMS output BED file")
-    
-    # Adds a positional argument for the output VCF file
-    parser.add_argument("vcf_file", help="Output VCF file")
-    
-    # Parses the command-line arguments and stores them in args.
-    args = parser.parse_args()
+    # Calls 'setup_logging()' to set up logging configuration
+    setup_logging()
 
-# Calls the convert_clamms_to_vcf function with the provided BED and VCF file paths
-convert_clamms_to_vcf(bed_file, vcf_file)
+
+    # Create an argument parser object with a description of the script
+    parser = argparse.ArgumentParser(description="Convert CLAMMS BED file to VCF file.")
+    
+    # Add a positional argument for the input BED file
+    parser.add_argument("input_file", help="Input CLAMMS BED file")
+    
+    # Add a positional argument for the output VCF file
+    parser.add_argument("output_file", help="Output VCF file")
+    
+    # Parse the command-line arguments and store them in args.
+    args = parser.parse_args()
+    
+    # Call the function to convert the BED file to VCF file
+    convert_clamms_bed_to_vcf(args.input_file, args.output_file)
+
+    # Validate the input file
+    validate_input_file(args.input_file)
+
+    # Call the function to convert the BED file to VCF file
+    convert_clamms_bed_to_vcf(args.input_file, args.output_file)

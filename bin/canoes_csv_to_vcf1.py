@@ -195,7 +195,7 @@ def write_vcf_file(output_file, mutations_by_sample):
                             format_values = '.'
                         
                         # Write the VCF entry with 'chr' prefix
-                        vcf_file.write(f"chr{chr_num}\t{start}\t.\tN\t{cnv}\t.\t{filter_status}\tEND={end};SVLEN={svlen};CN={cn};SVMETHOD=CANOES;SVTYPE=CNV;CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME")
+                        vcf_file.write(f"{chr_num}\t{start}\t.\tN\t{cnv}\t.\t{filter_status}\tEND={end};SVLEN={svlen};CN={cn};SVMETHOD=CANOES;SVTYPE=CNV;CIPOS={ci_pos};CIEND={ci_end};STRANDS={strands}\tGT:Q_SOME")
                         
                         # Write FORMAT values for each sample
                         for sid in mutations_by_sample:

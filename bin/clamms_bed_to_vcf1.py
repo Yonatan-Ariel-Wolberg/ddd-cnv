@@ -1,7 +1,53 @@
 #!/usr/bin/env python3
 
+# Import 'argparse' module for parsing command-line arguments specifying input and output files
 import argparse
+
+# Import 'os' module for file and directory operations
 import os
+
+# Import 'logging' module to provide informative messages about the scripts exectution, such as errors, warnings and general information
+import logging
+
+
+
+def setup_logging():
+    """
+    Set up logging configuration
+    """
+    # Set logging level to 'INFO', ignoring 'DEBUG' messages
+    # 'format' specifies the time when the log message is created, the severity level of the log and an actual log message provided by the code
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+
+def validate_input_file(input_file):
+    """
+    Validate that the input file exists and is readable.
+    """
+    # Function checks if path specified by input file is an existing regular file
+    if not os.path.isfile(input_file):
+        
+        # If the path doesn't exist or is not a regular file, raise an error
+        logging.error(f"Input file '{input_file}' not found.")
+        
+        # Raise FileNotFoundError exception
+        raise FileNotFoundError(f"Input file '{input_file}' not found.")
+
+
+
+def create_output_directory(output_file):
+    """
+    Create the output directory if it doesn't exist.
+    """
+    # Returns the directory name of the path
+    output_dir = os.path.dirname(output_file)
+
+    # If the output directory doesn't exist, create it
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+
 
 def convert_clamms_bed_to_vcf(input_file, output_file):
     """
@@ -14,9 +60,7 @@ def convert_clamms_bed_to_vcf(input_file, output_file):
     """
     try:
         # Create the output directory if it doesn't exist
-        output_dir = os.path.dirname(output_file)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        create_output_directory(output_file)
 
         # Dictionary to store mutations grouped by SAMPLE ID
         mutations_by_sample = {}
@@ -58,29 +102,45 @@ def convert_clamms_bed_to_vcf(input_file, output_file):
                         'MLCN': mlcn,
                         'NUM_WINDOWS': num_windows,
                         'Q_SOME': q_some,
-                        'Q_EXACT': q_exact
+                        'Q_EXACT': q_exact,
+                        'FILTER_STATUS': filter_status
                     }
 
-                    # Append mutation to the corresponding sample list
+                    # Check if sample ID is already in the dictionary
                     if sample_id not in mutations_by_sample:
+
+                        # Initializes a new list for that sample ID
                         mutations_by_sample[sample_id] = []
+
+                    # Append mutation to the corresponding sample list
                     mutations_by_sample[sample_id].append(mutation)
 
+
+                # Catch any IndexError exceptions and log them
                 except IndexError:
-                    print(f"Error: Insufficient fields in line {line_number}: {line}")
+                    logging.error(f"Error: Insufficient fields in line {line_number}: {line}")
+                
+                # Catch any ValueError or TypeError exceptions and log them
                 except (ValueError, TypeError) as e:
-                    print(f"Error in line {line_number}: {e}")
+                    logging.error(f"Error: Invalid field value in line {line_number}: {e}")
+
 
         # Write all mutations to a single VCF file maintaining sample order
         if mutations_by_sample:
             write_vcf_file(output_file, mutations_by_sample)
         else:
-            print("No valid mutations found in the input file.")
+            # If no mutations were found, log a warning
+            logging.warning("No mutations found in the input file.")
 
+    # Catch any IOError exceptions and log them
     except IOError as e:
-        print(f"Error reading or writing file: {e}")
+        logging.error(f"Error reading or writing file: {e}")
+
+    # Catch any Exception exceptions and log them
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {e}")
+
+
 
 def write_vcf_file(output_file, mutations_by_sample):
     """
@@ -113,13 +173,14 @@ def write_vcf_file(output_file, mutations_by_sample):
             # Write sample-specific fields after the FORMAT field
             vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
 
-            # Write sample IDs as column headers in the order they appeared in the BED file
+            # Write sample IDs as column headers in the order they appear in the BED file
             for sample_id in mutations_by_sample:
                 vcf_file.write(f"\t{sample_id}")
             vcf_file.write("\n")
 
             # Process mutations for each sample in order
             for sample_id in mutations_by_sample:
+                # For each sample ID, this line retrieves a list of mutations associated with that sample ID and assigns it to the variable 'mutations'
                 mutations = mutations_by_sample[sample_id]
                 
                 # Process each mutation for the current sample
@@ -144,7 +205,7 @@ def write_vcf_file(output_file, mutations_by_sample):
                         strands = '.'    # Placeholder for now
                         
                         # Determine SV type based on CNV type
-                        svtype = 'DEL' if cnv_type == 'DEL' else 'DUP'
+                        svtype = 'CNV' if cnv_type == 'DEL' or cnv_type == 'DUP' else cnv_type
                         
                         # Calculate FILTER status based on Q_EXACT and Q_SOME
                         if q_exact > 0 and q_some >= 500:
@@ -176,17 +237,30 @@ def write_vcf_file(output_file, mutations_by_sample):
 
                         vcf_file.write("\n")
 
+                    # Catch any KeyError exceptions and log them
                     except KeyError as e:
-                        print(f"Key error in mutation: {e}")
+                        logging.error(f"Key error in mutation: {e}")
+
+                    # Catch any ValueError exceptions and log them
                     except ValueError as e:
-                        print(f"Value error in mutation: {e}")
-
+                        logging.error(f"Value error in mutation: {e}")
+   
+    # Catch any IOError exceptions and log them
     except IOError as e:
-        print(f"Error reading or writing file: {e}")
+        logging.error(f"Error reading or writing file: {e}")
+   
+    # Catch any other unexpected exceptions and log them
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {e}")
 
+
+# Main function
+# Script must be executed directly
 if __name__ == "__main__":
+    # Calls 'setup_logging()' to set up logging configuration
+    setup_logging()
+
+
     # Create an argument parser object with a description of the script
     parser = argparse.ArgumentParser(description="Convert CLAMMS BED file to VCF file.")
     
@@ -199,5 +273,11 @@ if __name__ == "__main__":
     # Parse the command-line arguments and store them in args.
     args = parser.parse_args()
     
+    # Call the function to convert the BED file to VCF file
+    convert_clamms_bed_to_vcf(args.input_file, args.output_file)
+
+    # Validate the input file
+    validate_input_file(args.input_file)
+
     # Call the function to convert the BED file to VCF file
     convert_clamms_bed_to_vcf(args.input_file, args.output_file)
