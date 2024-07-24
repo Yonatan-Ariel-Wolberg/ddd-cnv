@@ -1,0 +1,33 @@
+##fileformat=VCFv4.1
+##ALT=<ID=DIP,Description="Diploid copy number">
+##ALT=<ID=CNV,Description="Copy Number Polymorphism">
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=DUP,Description="Duplication">
+##INFO=<ID=AC,Number=2,Type=Integer,Description="Allele count in genotypes, for each ALT allele, in the same order as listed">
+##INFO=<ID=AF,Number=2,Type=Float,Description="Allele Frequency, for each ALT allele, in the same order as listed">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End coordinate of this variant">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Difference in length between REF and ALT alleles">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=TPOS,Number=1,Type=Integer,Description="Start coordinate of target used to genotype this variant">
+##INFO=<ID=TEND,Number=1,Type=Integer,Description="End coordinate of target used to genotype this variant">
+##INFO=<ID=NUMT,Number=1,Type=Integer,Description="Number of targets used to genotype this variant">
+##INFO=<ID=GQT,Number=1,Type=Float,Description="CNV-specific genotyping quality threshold, calculated as the minimal Q_EXACT of discovered CNVs">
+##INFO=<ID=PREVTARGSTART,Number=1,Type=Integer,Description="Start coordinate of target preceding the first target used to genotype this variant">
+##INFO=<ID=PREVTARGEND,Number=1,Type=Integer,Description="End coordinate of target preceding the first target used to genotype this variant">
+##INFO=<ID=POSTTARGSTART,Number=1,Type=Integer,Description="Start coordinate of target following the last target used to genotype this variant">
+##INFO=<ID=POSTTARGEND,Number=1,Type=Integer,Description="End coordinate of target following the last target used to genotype this variant">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=NDQ,Number=1,Type=Float,Description="Phred-scaled quality of =N=on =D=iploidy">
+##FORMAT=<ID=DQ,Number=1,Type=Float,Description="Phred-scaled quality of =D=iploidy">
+##FORMAT=<ID=EQ,Number=2,Type=Float,Description="Phred-scaled qualities of =E=xact CNV event of allele types, in order given in ALT field">
+##FORMAT=<ID=SQ,Number=2,Type=Float,Description="Phred-scaled qualities of =S=ome CNV event of allele types, in order given in ALT field">
+##FORMAT=<ID=NQ,Number=2,Type=Float,Description="Phred-scaled qualities of =N=o CNV event of allele types, in order given in ALT field">
+##FORMAT=<ID=LQ,Number=2,Type=Float,Description="Phred-scaled qualities of =L=eft breakpoint of CNV event of allele types, in order given in ALT field">
+##FORMAT=<ID=RQ,Number=2,Type=Float,Description="Phred-scaled qualities of =R=ight breakpoint of CNV event of allele types, in order given in ALT field">
+##FORMAT=<ID=PL,Number=3,Type=Float,Description="Normalized, Phred-scaled relative likelihoods for DIP,DEL,DUP genotypes, capped at 255">
+##FORMAT=<ID=RD,Number=1,Type=Float,Description="Mean Read Depth over region">
+##FORMAT=<ID=ORD,Number=1,Type=Float,Description="Mean Original (unnormalized) Read Depth over region">
+##FORMAT=<ID=DSCVR,Number=1,Type=Character,Description="Was this CNV locus discovered in this sample? (Y or N)">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	EGAF00001051389	EGAF00001051397	EGAF00001051403	EGAF00001051513	EGAF00001051581	EGAF00001051585	EGAF00001051598	EGAF00001051625	EGAF00001051674	EGAF00001051743	EGAF00001051810	EGAF00001051825	EGAF00001051896	EGAF00001051924	EGAF00001051955	EGAF00001052012	EGAF00001052030	EGAF00001052034	EGAF00001052052	EGAF00001052092	EGAF00001052324	EGAF00001052344	EGAF00001052401	EGAF00001052426	EGAF00001052455	EGAF00001052468	EGAF00001052493	EGAF00001052526	EGAF00001052530	EGAF00001052582	EGAF00001052596	EGAF00001052645	EGAF00001052674	EGAF00001052707	EGAF00001052711	EGAF00001052731	EGAF00001052739	EGAF00001052741	EGAF00001052792	EGAF00001052808	EGAF00001052811	EGAF00001052818	EGAF00001052848	EGAF00001052882	EGAF00001052886	EGAF00001052957	EGAF00001052959	EGAF00001052994	EGAF00001053020	EGAF00001053065	EGAF00001053073	EGAF00001053118	EGAF00001053131	EGAF00001053132	EGAF00001053136	EGAF00001053145	EGAF00001053147	EGAF00001053175	EGAF00001053185	EGAF00001053194	EGAF00001053203	EGAF00001053208	EGAF00001053247	EGAF00001053253	EGAF00001053260	EGAF00001053294	EGAF00001053298	EGAF00001053352	EGAF00001053355	EGAF00001053365	EGAF00001053372	EGAF00001055413	EGAF00001277274	EGAF00001334292	EGAF00001334397	EGAF00001334467	EGAF00001334471	EGAF00001334676	EGAF00001334682	EGAF00001335424	EGAF00001335434	EGAF00001335493	EGAF00001335521	EGAF00001335524	EGAF00001335525	EGAF00001335567	EGAF00001335572	EGAF00001335597	EGAF00001335601	EGAF00001335602	EGAF00001335619	EGAF00001335643	EGAF00001335645	EGAF00001335715	EGAF00001342762	EGAF00001342766	EGAF00001342818	EGAF00001343220
