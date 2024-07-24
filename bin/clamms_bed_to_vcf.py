@@ -226,7 +226,7 @@ def write_vcf_file(output_file, mutations_by_sample):
                             format_value = '.'    # Example, adjust as per your logic
                         
                         # Write the VCF entry
-                        vcf_file.write(f"chr{chrom}\t{start}\t.\tN\t<{svtype}>\t.\t{filter_status}\tEND={end};SVLEN={svlen};CN={mlcn};SVMETHOD=CLAMMS;SVTYPE={svtype};CIPOS={ci_pos};STRANDS={strands}\tGT:Q_SOME:Q_EXACT")
+                        vcf_file.write(f"chr{chrom}\t{start}\t.\tN\t<{cnv_type}>\t.\t{filter_status}\tEND={end};SVLEN={svlen};CN={mlcn};SVMETHOD=CLAMMS;SVTYPE={svtype};CIPOS={ci_pos};STRANDS={strands}\tGT:Q_SOME:Q_EXACT")
                         
                         # Write FORMAT values for each sample
                         for sid in mutations_by_sample:

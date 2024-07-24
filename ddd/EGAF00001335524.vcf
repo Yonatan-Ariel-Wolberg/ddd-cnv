@@ -1,0 +1,19 @@
+##fileformat=VCFv4.1
+##source=CANOESCSVToVcfConverter
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=DUP,Description="Duplication">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the structural variant">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=PRECISE,Number=0,Type=Flag,Description="Precise structural variation">
+##INFO=<ID=SVLEN,Number=1,Type=Float,Description="Length of the SV">
+##INFO=<ID=SVMETHOD,Number=1,Type=String,Description="Vector of samples supporting the SV">
+##INFO=<ID=CN,Number=1,Type=Integer,Description="Copy number of the SV">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of the SV">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="Confidence interval around POS">
+##INFO=<ID=CIEND,Number=2,Type=Integer,Description="Confidence interval around END">
+##INFO=<ID=STRANDS,Number=1,Type=String,Description="Indicating the direction of the reads with respect to the type and breakpoint">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=Q_SOME,Number=1,Type=Float,Description="Quality of the sample">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	EGAF00001335524
+chr2	89851706	.	N	DEL	.	PASS	END=90221270;SVLEN=369564;CN=1;SVMETHOD=CANOES;SVTYPE=CNV;CIPOS=(0, 0);CIEND=(0, 0);STRANDS=.	GT:Q_SOME	0/1:84
+chr10	133070856	.	N	DUP	.	PASS	END=133379601;SVLEN=308745;CN=3;SVMETHOD=CANOES;SVTYPE=CNV;CIPOS=(0, 0);CIEND=(0, 0);STRANDS=.	GT:Q_SOME	0/1:99
