@@ -14,15 +14,15 @@ process canoes_to_vcf {
 
     // Specifies input
     input:
-    path("Sample_CNVs_filtered.csv")
+    path("CANOES_CNVs_filtered.csv")
 
     // Specifies output
     output:
-    file("${sample_name}_canoes.vcf"), emit: canoes_vcf
+    file("CANOES_CNVs_filtered.vcf"), emit: canoes_vcf
 
     // Specifies script
     script:
     """
-    python ddd-cnv/bin/convert_canoes_to_vcf.py ${outdir}/out_CANOES/CANOES_CNVs_filtered.csv ${outdir}/out_CANOES
+    python ddd-cnv/bin/canoes_csv_to_vcf.py -i ${outdir}/out_CANOES/CANOES_CNVs_filtered.csv -o ${outdir}/out_CANOES/CANOES_CNVs_filtered.vcf
     """
 }

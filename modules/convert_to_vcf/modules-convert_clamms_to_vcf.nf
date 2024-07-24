@@ -14,15 +14,15 @@ process clamms_to_vcf {
 
     // Specifies input
     input:
-    path("samples.cnv.filtered.bed")
+    path("CLAMMS.cnv.filtered.bed")
 
     // Specifies output
     output:
-    file("${sample_name}_clamms.vcf"), emit: clamms_vcf
+    file("CLAMMS_CNVs_filtered.vcf"), emit: clamms_vcf
 
     // Specifies script
     script:
     """
-    python ddd-cnv/bin/convert_clamms_to_vcf.py ${outdir}/out_CLAMMS/CLAMMS.cnv.filtered.bed ${outdir}/out_CLAMMS
+    python ddd-cnv/bin/clamms_bed_to_vcf.py -i ${outdir}/out_CLAMMS/CLAMMS.cnv.filtered.bed -o ${outdir}/out_CLAMMS/CLAMMS_CNVs_filtered.vcf
     """
 }
