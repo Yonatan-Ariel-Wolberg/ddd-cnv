@@ -217,13 +217,13 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
                         mid_bp = mutation['MID_BP']
                         targets = mutation['TARGETS']
                         num_targ = mutation['NUM_TARG']
-                        q_start = mutation['Q_START']
-                        q_stop = mutation['Q_STOP']
-                        q_exact = mutation['Q_EXACT']
-                        q_some = mutation['Q_SOME']
-                        q_non_dip = mutation['Q_NON_DIPLOID']
-                        mean_rd = mutation['MEAN_RD']
-                        mean_orig_rd = mutation['MEAN_ORIG_RD']
+                        q_start = float(mutation['Q_START'])
+                        q_stop = float(mutation['Q_STOP'])
+                        q_exact = float(mutation['Q_EXACT'])
+                        q_some = float(mutation['Q_SOME'])
+                        q_non_dip = float(mutation['Q_NON_DIPLOID'])
+                        mean_rd = float(mutation['MEAN_RD'])
+                        mean_orig_rd = float(mutation['MEAN_ORIG_RD'])
                         
                         # Set reference allele to 'N'
                         ref = 'N'
