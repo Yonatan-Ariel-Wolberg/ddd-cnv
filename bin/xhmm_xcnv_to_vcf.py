@@ -48,6 +48,9 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
     # Dictionary to store mutations grouped by SAMPLE ID
     mutations_by_sample = {}
     
+    # Set to keep track of sample IDs already added
+    sample_set = set()
+    
     # List to keep track of the order of sample IDs
     sample_order = []
 
@@ -92,9 +95,16 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
                         'MEAN_RD': row['MEAN_RD'],
                         'MEAN_ORIG_RD': row['MEAN_ORIG_RD']
                     }
-                   
+                    
                     # Extracts sample identifier from 'mutation' dictionary and assigns it to the variable 'sample_id'
-                    sample_id = mutation['SAMPLE']
+                    sample_id = mutation['SAMPLE']                   
+                    
+                    if sample_id not in sample_set:
+                        # Line appends 'sample_id' to the 'sample_order' list
+                        sample_order.append(sample_id)
+                        # Line adds 'sample_id' to the 'sample_set' set
+                        sample_set.add(sample_id)
+
                    
                     # Line appends 'sample_id' to the 'sample_order' list
                     sample_order.append(sample_id)
@@ -202,6 +212,8 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
             
             for sample_id in sample_order:
+                # Get list of mutations for current sample
+                mutations = mutations_by_sample[sample_id]
                 vcf_file.write("\t" + sample_id)
             vcf_file.write("\n")
             
