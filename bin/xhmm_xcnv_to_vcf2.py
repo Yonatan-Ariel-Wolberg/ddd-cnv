@@ -224,7 +224,13 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             vcf_file.write("##FORMAT=<ID=Q_NON_DIPLOID,Number=1,Type=Float,Description=\"Phred-scaled quality of not being diploid, i.e., DEL or DUP event in the interval\">\n")   
 
             # Write VCF header row with sample IDs
-            vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT" + "\t".join(sample_order) + "\n")
+            vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
+            
+            for sample_id in sample_order:
+                # Get list of mutations for current sample
+                mutations = mutations_by_sample[sample_id]
+                vcf_file.write(f"\t{sample_id}")
+            vcf_file.write("\n")
 
             # For each sample in sample_order, write mutations
             for sample_id, mutations in mutations_by_sample.items():
