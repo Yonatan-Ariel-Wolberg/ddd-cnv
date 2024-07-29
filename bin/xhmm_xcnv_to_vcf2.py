@@ -283,7 +283,7 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
                         gt = "./."
                         
                         # Write the mutation to the VCF file
-                        vcf_file.write(f"chr{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE={cnv};Q_START={q_start};Q_STOP={q_stop};SVMETHOD=XHMM;STRANDS={strands}\tGT:Q_EXACT:Q_SOME:Q_NON_DIPLOID")
+                        vcf_file.write(f"{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE={cnv};Q_START={q_start};Q_STOP={q_stop};SVMETHOD=XHMM;STRANDS={strands}\tGT:Q_EXACT:Q_SOME:Q_NON_DIPLOID")
                         
                         # Write 'FORMAT' values for each sample
                         for sid in mutations_by_sample:
