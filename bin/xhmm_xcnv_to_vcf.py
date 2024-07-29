@@ -12,6 +12,9 @@ import csv
 # Import logging for logging errors and other messages
 import logging
 
+# Import datetime for getting the current date and time
+from datetime import datetime
+
 # Set up logging configuration
 def setup_logging(log_file=None):
     if log_file:  # Check if a log file path is provided
