@@ -1,0 +1,14 @@
+Aug-01 12:42:15.746 [main] DEBUG nextflow.cli.Launcher - $> nextflow run modules-convert_canoes_to_vcf.nf
+Aug-01 12:42:15.976 [main] DEBUG nextflow.cli.CmdRun - N E X T F L O W  ~  version 24.04.1
+Aug-01 12:42:16.064 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/home/ywolberg/.nextflow/plugins; core-plugins: nf-amazon@2.5.2,nf-azure@1.6.0,nf-cloudcache@0.4.1,nf-codecommit@0.2.0,nf-console@1.1.3,nf-ga4gh@1.3.0,nf-google@1.13.2,nf-tower@1.9.1,nf-wave@1.4.2
+Aug-01 12:42:16.102 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+Aug-01 12:42:16.105 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+Aug-01 12:42:16.110 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.10.0 in 'deployment' mode
+Aug-01 12:42:16.156 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
+Aug-01 12:42:16.270 [main] DEBUG nextflow.scm.ProviderConfig - Using SCM config path: /home/ywolberg/.nextflow/scm
+Aug-01 12:42:16.317 [main] DEBUG nextflow.cli.Launcher - Operation aborted
+nextflow.exception.AbortOperationException: Cannot find script file: modules-convert_canoes_to_vcf.nf
+	at nextflow.cli.CmdRun.getScriptFile(CmdRun.groovy:517)
+	at nextflow.cli.CmdRun.run(CmdRun.groovy:321)
+	at nextflow.cli.Launcher.run(Launcher.groovy:503)
+	at nextflow.cli.Launcher.main(Launcher.groovy:657)

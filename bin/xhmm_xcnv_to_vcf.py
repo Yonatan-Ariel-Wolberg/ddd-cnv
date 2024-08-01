@@ -34,7 +34,32 @@ def setup_logging(log_file=None):
             format='%(asctime)s - %(levelname)s - %(message)s'  # Log message format
         )
 
-def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file):
+def read_sample_list(sample_file):
+    """
+    Function to read sample IDs from a .txt file.
+
+    Parameters:
+    - sample_file: The path to the .txt file containing sample IDs, one per line.
+
+    Returns:
+    - A list of sample IDs.
+    """
+    sample_set = set()
+    try:
+        with open(sample_file, 'r') as f:
+            for line in f:
+                # Read sample IDs, strip whitespace and convert to a set
+                sample_id = line.strip()
+                if sample_id:
+                    sample_set.add(sample_id)
+
+    # Catches any 'IOError' errors while reading sample IDs, where 'e' is the error object
+    except IOError as e:
+        logging.error(f"Error reading sample IDs from {sample_file}: {e}")
+    return list(sample_set)
+
+
+def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file, sample_file=None):
     """
     Function to convert XHMM XCNV output to VCF format.
 
@@ -42,6 +67,7 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
     - input_file: The path to the XHMM XCNV output file.
     - output_dir: The path to the output directory.
     - combined_vcf_name: The name of the combined VCF file.
+    - sample_file: Optional .txt file containing sample IDs, one per line.
     - log_file: Optional log file to record errors.
     """
     
@@ -59,11 +85,11 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
             logging.error(f"Error creating directory {output_dir}: {e}")
             return
 
+    # Read sample IDs from file if provided
+    sample_list = read_sample_list(sample_file) if sample_file else []
+
     # Dictionary to store mutations grouped by SAMPLE ID
     mutations_by_sample = {}
-    
-    # Set to keep track of sample IDs already added
-    sample_set = set()
     
     # List to keep track of the order of sample IDs
     sample_order = []
@@ -71,7 +97,7 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
     try:
         # Open the input XCNV file
         with open(input_file, 'r') as csvfile:
-            # Create a XCNV reader object
+            # Create a CSV reader object
             csvreader = csv.DictReader(csvfile, delimiter='\t')
             
             # Print XCNV headers for debugging
@@ -79,7 +105,7 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
 
             # List of required columns in XCNV file
             required_columns = [
-                'SAMPLE', 'CNV', 'INTERVAL', 'KB', 'CHR', 'MID_BP', 'TARGETS',
+              'SAMPLE', 'CNV', 'INTERVAL', 'KB', 'CHR', 'MID_BP', 'TARGETS',
                 'NUM_TARG', 'Q_EXACT', 'Q_SOME', 'Q_NON_DIPLOID', 'Q_START',
                 'Q_STOP', 'MEAN_RD', 'MEAN_ORIG_RD'
             ]
@@ -95,9 +121,17 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
 
             for row_number, row in enumerate(csvreader, start=1):
                 try:
+                    
+                    # Extracts sample identifier from the row
+                    sample_id = row['SAMPLE']
+
+                    # Only process if sample_id is in sample_list
+                    if sample_id not in sample_list:
+                        continue
+
                     # Creates a dictionary called 'mutation' and stores values from the current row under different keys
                     mutation = {
-                        'SAMPLE': row['SAMPLE'],
+                        'SAMPLE': sample_id,
                         'CNV': row['CNV'],
                         'INTERVAL': row['INTERVAL'],
                         'KB': row['KB'],
@@ -114,14 +148,9 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
                         'MEAN_ORIG_RD': row['MEAN_ORIG_RD']
                     }
 
-                    # Extracts sample identifier from 'mutation' dictionary and assigns it to the variable 'sample_id'
-                    sample_id = mutation['SAMPLE']
-                    
-                    if sample_id not in sample_set:
-                        # Line appends 'sample_id' to the 'sample_order' list
+                    # Appends 'sample_id' to 'sample_order' list
+                    if sample_id not in sample_order:
                         sample_order.append(sample_id)
-                        # Line adds 'sample_id' to the 'sample_set' set
-                        sample_set.add(sample_id)
 
                     # Line checks if 'sample_id' is already in the 'mutations_by_sample' dictionary
                     if sample_id in mutations_by_sample:
@@ -159,6 +188,12 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
         logging.error(error_msg)
         return
 
+    # Add placeholder mutations for samples that do not have any mutations
+    for sample_id in sample_list:
+        if sample_id not in mutations_by_sample:
+            mutations_by_sample[sample_id] = []
+            sample_order.append(sample_id)
+
     # Check for duplicates in sample_order
     if len(sample_order) != len(set(sample_order)):
         logging.error("Duplicates found in sample_order!")
@@ -169,13 +204,17 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
     if combined_vcf_name:
         # Create combined VCF file name
         combined_vcf_file = os.path.join(output_dir, combined_vcf_name)
-        write_vcf_file(combined_vcf_file, mutations_by_sample, sample_order, log_file)
+        write_vcf_file(combined_vcf_file, mutations_by_sample, sample_list, log_file, include_placeholders=False)
 
+    # Set combined VCF file name to 'XHMM_CNVs_filtered.vcf' if not provided
+    if not combined_vcf_name:
+        combined_vcf_file = 'XHMM_CNVs_filtered.vcf'
+    
     # Write individual VCF files for each sample
-    for sample_id in sample_order:
+    for sample_id in sample_list:
         # Names each individual VCF file after the sample ID
         sample_vcf_file = os.path.join(output_dir, f"{sample_id}.vcf")
-        write_vcf_file(sample_vcf_file, {sample_id: mutations_by_sample[sample_id]}, [sample_id], log_file)
+        write_vcf_file(sample_vcf_file, {sample_id: mutations_by_sample[sample_id]}, [sample_id], log_file, include_placeholders=True)
 
     # Print number of samples in combined VCF file or in individual VCF files
     if combined_vcf_name:
@@ -184,7 +223,7 @@ def convert_xhmm_xcnv_to_vcf(input_file, output_dir, combined_vcf_name, log_file
         print(f"Number of samples in individual VCF files: {len(sample_order)}")
 
 
-def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None):
+def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None, include_placeholders=False):
     """
     Write mutations to a VCF file.
 
@@ -205,31 +244,11 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             # Write VCF header
             vcf_file.write("##fileformat=VCFv4.1\n")
             vcf_file.write("##fileDate=" + datetime.now().strftime("%d%m%Y") + "\n")
-            vcf_file.write("##source=XHMM-XCNVToVcfConverter\n")
+            vcf_file.write("##source=CANOES-CSVToVcfConverter\n")
             vcf_file.write("##reference=GRCh37.p13\n")
             vcf_file.write("##phasing=partial\n")
-            vcf_file.write("##contig=<ID=chr1>\n")
-            vcf_file.write("##contig=<ID=chr2>\n")
-            vcf_file.write("##contig=<ID=chr3>\n")
-            vcf_file.write("##contig=<ID=chr4>\n")
-            vcf_file.write("##contig=<ID=chr5>\n")
-            vcf_file.write("##contig=<ID=chr6>\n")
-            vcf_file.write("##contig=<ID=chr7>\n")
-            vcf_file.write("##contig=<ID=chr8>\n")
-            vcf_file.write("##contig=<ID=chr9>\n")
-            vcf_file.write("##contig=<ID=chr10>\n")
-            vcf_file.write("##contig=<ID=chr11>\n")
-            vcf_file.write("##contig=<ID=chr12>\n")
-            vcf_file.write("##contig=<ID=chr13>\n")
-            vcf_file.write("##contig=<ID=chr14>\n")
-            vcf_file.write("##contig=<ID=chr15>\n")
-            vcf_file.write("##contig=<ID=chr16>\n")
-            vcf_file.write("##contig=<ID=chr17>\n")
-            vcf_file.write("##contig=<ID=chr18>\n")
-            vcf_file.write("##contig=<ID=chr19>\n")
-            vcf_file.write("##contig=<ID=chr20>\n")
-            vcf_file.write("##contig=<ID=chr21>\n")
-            vcf_file.write("##contig=<ID=chr22>\n")
+            for i in range(1, 23):
+                vcf_file.write(f"##contig=<ID=chr{i}>\n")
             vcf_file.write("##contig=<ID=chrX>\n")
             vcf_file.write("##contig=<ID=chrY>\n")
             vcf_file.write("##ALT=<ID=DEL,Description=\"Deletion\">\n")
@@ -246,84 +265,89 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             vcf_file.write("##FORMAT=<ID=Q_SOME,Number=1,Type=Float,Description=\"Phred-scaled quality of some CNV event in the interval\">\n")
             vcf_file.write("##FORMAT=<ID=Q_EXACT,Number=1,Type=Float,Description=\"Phred-scaled quality of the exact CNV event along the entire interval\">\n")
             vcf_file.write("##FORMAT=<ID=Q_NON_DIPLOID,Number=1,Type=Float,Description=\"Phred-scaled quality of not being diploid, i.e., DEL or DUP event in the interval\">\n")   
-
+            
             # Write VCF header row with sample IDs
             vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
             
             for sample_id in sample_order:
-                # Get list of mutations for current sample
-                mutations = mutations_by_sample[sample_id]
+                # Write sample IDs as header columns
                 vcf_file.write(f"\t{sample_id}")
             vcf_file.write("\n")
 
             # For each sample in sample_order, write mutations
-            for sample_id, mutations in mutations_by_sample.items():
-                for mutation in mutations:
-                    try:
-                        # Extract relevant information from each field
-                        chr_num = mutation['CHR']
-                        cnv = mutation['CNV']
-                        interval = mutation['INTERVAL']
-                        kb = mutation['KB']
-                        mid_bp = mutation['MID_BP']
-                        targets = mutation['TARGETS']
-                        num_targ = mutation['NUM_TARG']
-                        q_start = float(mutation['Q_START'])
-                        q_stop = float(mutation['Q_STOP'])
-                        q_exact = float(mutation['Q_EXACT'])
-                        q_some = float(mutation['Q_SOME'])
-                        q_non_dip = float(mutation['Q_NON_DIPLOID'])
-                        mean_rd = float(mutation['MEAN_RD'])
-                        mean_orig_rd = float(mutation['MEAN_ORIG_RD'])
+            for sample_id in sample_order:
+                # Get list of mutations for current sample
+                mutations = mutations_by_sample[sample_id]
+                if not mutations and include_placeholders:
+                    placeholder_line = f".\t.\t.\t.\t.\t.\t.\t.\t.\t./.:.:.:."
+                    vcf_file.write(placeholder_line + "\n")
+                else:
+                    for mutation in mutations:
+                        try:
+                            # Extract relevant information from each field
+                            chr_num = mutation['CHR']
+                            cnv = mutation['CNV']
+                            interval = mutation['INTERVAL']
+                            kb = mutation['KB']
+                            mid_bp = mutation['MID_BP']
+                            targets = mutation['TARGETS']
+                            num_targ = mutation['NUM_TARG']
+                            q_some = float(mutation['Q_SOME'])
+                            q_exact = float(mutation['Q_EXACT'])
+                            q_non_diploid = float(mutation['Q_NON_DIPLOID'])
+                            q_start = float(mutation['Q_START'])
+                            q_stop = float(mutation['Q_STOP'])
+                            mean_rd = float(mutation['MEAN_RD'])
+                            mean_orig_rd = float(mutation['MEAN_ORIG_RD'])
                         
-                        # Set reference allele to 'N'
-                        ref = 'N'
+                            # Set reference allele to 'N'
+                            ref = 'N'
                         
-                        # Set alternate allele based on CNV type
-                        alt = '<' + cnv + '>'
+                            # Set alternate allele based on CNV type
+                            alt = '<' + cnv + '>'
                         
-                        # Checks if the chromosome number in the interval matches the specified chromosome number
-                        if chr_num != interval.split(':')[0]:
-                            # Raises an error if the chromosome number in the interval does not match the specified chromosome number
-                            raise ValueError(f"Chromosome number in interval {interval} does not match the specified chromosome number {chr_num}.")
+                            # Checks if the chromosome number in the interval matches the specified chromosome number
+                            if chr_num != interval.split(':')[0]:
+                                # Raises an error if the chromosome number in the interval does not match the specified chromosome number
+                                raise ValueError(f"Chromosome number in interval {interval} does not match the specified chromosome number {chr_num}.")
                         
-                        # Start is the start of the interval and end is the end of the interval 
-                        start = int(interval.split(':')[1].split('-')[0])
-                        end = int(interval.split(':')[1].split('-')[1])
+                            # Start is the start of the interval and end is the end of the interval 
+                            start = int(interval.split(':')[1].split('-')[0])
+                            end = int(interval.split(':')[1].split('-')[1])
                         
-                        # SVLEN is the length of the structural variant
-                        svlen = end - start + 1
+                            # SVLEN is the length of the structural variant
+                            svlen = end - start + 1                      
                         
-                        # Set filter status based on quality scores
-                        if q_some >= 60 and q_exact >= 60 and q_non_dip >= 60:
-                            filter_status = 'PASS'
-                        else:
-                            filter_status = 'LowQuality'
-                        
-                        # Placeholder for strand information as XHMM does not provide strand information
-                        strands = "."
-                        
-                        # Placeholder for genotype as XHMM does not provide genotype
-                        gt = "./."
-                        
-                        # Write the mutation to the VCF file
-                        vcf_file.write(f"{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE={cnv};Q_START={q_start};Q_STOP={q_stop};SVMETHOD=XHMM;STRANDS={strands}\tGT:Q_EXACT:Q_SOME:Q_NON_DIPLOID")
-                        
-                        # Write 'FORMAT' values for each sample
-                        for sid in mutations_by_sample:
-                            if sid == sample_id:
-                                vcf_file.write(f"\t{gt}:{q_exact}:{q_some}:{q_non_dip}")
+                            # Set filter status based on quality scores
+                            if q_some >= 60 and q_exact >= 60 and q_non_diploid >= 60:
+                                filter_status = 'PASS'
                             else:
-                                vcf_file.write(f"\t.")
-                        vcf_file.write("\n")
+                                filter_status = 'LowQuality'
+                        
+                            # Placeholder for strand information as XHMM does not provide strand information
+                            strands = "."
+                        
+                            # Placeholder for genotype as XHMM does not provide genotype
+                            gt = "./."
+
+                            # Write the mutation to the VCF file
+                            vcf_file.write(f"{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE={cnv};Q_START={q_start};Q_STOP={q_stop};SVMETHOD=XHMM;STRANDS={strands}\tGT:Q_EXACT:Q_SOME:Q_NON_DIPLOID")
+
+                            # Write 'FORMAT' values for each sample
+                            for sample in sample_order:
+                                if sample == sample_id:
+                                    vcf_file.write(f"\t{gt}:{q_exact if q_exact else '.'}:{q_some if q_some else '.'}:{q_non_diploid if q_non_diploid else '.'}")
+                                else:
+                                    vcf_file.write(f"\t./.:.:.:.")
+                            vcf_file.write("\n")
                     
-                    # Catches 'KeyError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'KeyError' object
-                    except KeyError as e:
-                        logging.error(f"Key error when writing mutation {mutation}: {e}")
+                        # Catches 'KeyError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'KeyError' object
+                        except KeyError as e:
+                            logging.error(f"Key error when writing mutation {mutation}: {e}")
                     
-                    # Catches 'ValueError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'ValueError' object
-                    except ValueError as e:
-                        logging.error(f"Value error when writing mutation {mutation}: {e}")
+                        # Catches 'ValueError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'ValueError' object
+                        except ValueError as e:
+                            logging.error(f"Value error when writing mutation {mutation}: {e}")
 
     # Catches 'IOError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'IOError' object
     except IOError as e:
@@ -334,10 +358,11 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
         logging.error(f"Unexpected error writing VCF to {output_file}: {e}")
 
 
-# Main function execution
-# Script will only run if executed and not run as a module
-if __name__ == "__main__":
 
+def main():
+    """
+    Main function of the script. It parses the command-line arguments and calls the convert_xhmm_xcnv_to_vcf function.
+    """
     # Create an argument parser with a description of the script
     parser = argparse.ArgumentParser(description='Convert XHMM .xcnv files to VCF format')
     
@@ -346,9 +371,15 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--output_dir', type=str, help='Output directory for VCF files')
     parser.add_argument('-c', '--combined_vcf_name', type=str, help='Name for the combined VCF file')
     parser.add_argument('-l', '--log', type=str, help='Log file to record errors and issues')
+    parser.add_argument('-s', '--sample_file', type=str, help='File containing sample IDs')
 
     # Parse command-line arguments and store them in args
     args = parser.parse_args()
 
     # Call the convert_xhmm_xcnv_to_vcf function with the parsed arguments
-    convert_xhmm_xcnv_to_vcf(args.input, args.output_dir, args.combined_vcf_name, args.log)
+    convert_xhmm_xcnv_to_vcf(args.input, args.output_dir, args.combined_vcf_name, args.log, args.sample_file)
+
+# Main function execution
+# Script will only run if executed and not run as a module
+if __name__ == "__main__":
+    main()
