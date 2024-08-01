@@ -23,13 +23,13 @@ process XhmmToVcf {
     
     // Specifies output
     output:
-    path "XHMM_CNVs_filtered.vcf", emit: filtered_vcfs
+    path (*), emit: filtered_vcfs
     
     // Specifies script
     script:
     """
     # Converts XHMM XCNV format to VCF format
-    python /home/ywolberg/DDD_Africa/ddd-cnv/ddd-cnv/bin/xhmm_xcnv_to_vcf2.py -i /dataG/ddd/analysis/CNV_calling/TRUTHSET.2023.08.22/XHMM_filtered.xcnv -d ${params.outdir}/nextflow -c XHMM_CNVs_filtered.vcf 
+    python /home/ywolberg/DDD_Africa/ddd-cnv/ddd-cnv/bin/xhmm_xcnv_to_vcf2.py -i $filtered_cnvs -d ${params.outdir}/nextflow -c XHMM_CNVs_filtered.vcf 
     """
 }
 
@@ -47,7 +47,7 @@ process IndexVcf {
 
     // Specifies input
     input:
-    path("XHMM_CNVs_filtered.vcf") from filtered_vcfs
+    path vcf_file from filtered_vcfs
 
     // Specifies output
     output:
@@ -59,27 +59,30 @@ process IndexVcf {
     // Specifies script
     script:
     """
-    # Compress the VCF file with bgzip
-    bgzip -c ${params.outdir}/nextflow/XHMM_CNVs_filtered.vcf > out_xhmm/XHMM_CNVs_filtered.vcf.gz
-    
-    # Load the samtools/1.20
+    # Load the necessary module
     module load samtools/1.20
 
+    # Compress the VCF file with bgzip
+    bgzip -c $vcf_file > ${params.outdir}/nextflow/XHMM_CNVs_filtered.vcf.gz
+    
     # Sort the VCF file with BCFtools
-    bcftools sort -o ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf.gz -O z ${params.outdir}/nextflow/XHMM_CNVs_filtered.vcf.gz 
+    bcftools sort -o ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf.gz -O z $vcf_file.gz 
 
     # Index the VCF file with Tabix
     tabix -p vcf ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf.gz
 
-    # Unzip the sorted VCF file and redirects output to VCF file
-    zcat ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf.gz | less -S > ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf
+    # Unzip the sorted VCF file and redirect output to VCF file
+    zcat ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf.gz > ${params.outdir}/nextflow/sorted_XHMM_CNVs_filtered.vcf
     """
 }
 
 workflow {
-// Input channel
-filtered_cnvs = Channel.fromPath('/dataG/ddd/analysis/CNV_calling/TRUTHSET.2023.08.22/XHMM_filtered.xcnv')
+    // Input channel
+    filtered_cnvs = Channel.fromPath('/dataG/ddd/analysis/CNV_calling/TRUTHSET.2023.08.22/XHMM_filtered.xcnv')
 
-XhmmToVcf(filtered_cnvs)
-IndexVcf(filtered_vcfs)
+    // Run the XhmmToVcf process and collect its output into the filtered_vcfs channel
+    filtered_vcfs = XhmmToVcf(filtered_cnvs)
+
+    // Run the IndexVcf process using the filtered_vcfs channel as input
+    IndexVcf(filtered_vcfs)
 }
