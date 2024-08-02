@@ -182,11 +182,7 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
         logging.error(error_msg)
         return
 
-    # Add placeholder mutations for samples that do not have any mutations
-    for sample_id in sample_list:
-        if sample_id not in mutations_by_sample:
-            mutations_by_sample[sample_id] = []
-            sample_order.append(sample_id)
+    sample_order = [sample_id for sample_id in sample_order]
 
     # Check for duplicates in sample_order
     if len(sample_order) != len(set(sample_order)):
@@ -202,9 +198,10 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
 
     # Write individual VCF files for each sample
     for sample_id in sample_list:
-        # Names each individual VCF file after the sample ID
-        sample_vcf_file = os.path.join(output_dir, f"{sample_id}.vcf")
-        write_vcf_file(sample_vcf_file, {sample_id: mutations_by_sample[sample_id]}, [sample_id], log_file, include_placeholders=True)
+        if sample_id not in mutations_by_sample and len(mutations_by_sample) > 0:
+            # Names each individual VCF file after the sample ID
+            sample_vcf_file = os.path.join(output_dir, f"{sample_id}.vcf")
+            write_vcf_file(sample_vcf_file, {sample_id: mutations_by_sample[sample_id]}, [sample_id], log_file, include_placeholders=True)
 
     # Print number of samples in combined VCF file or in individual VCF files
     if combined_vcf_name:
@@ -266,71 +263,67 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             for sample_id in sample_order:
                 # Get list of mutations for current sample
                 mutations = mutations_by_sample[sample_id]
-                if not mutations and include_placeholders:
-                    placeholder_line = f".\t.\t.\t.\t.\t.\t.\t.\t.\t./.:."
-                    vcf_file.write(placeholder_line + "\n")
-                else:
-                    for mutation in mutations:
-                        try:
-                            # Extract relevant information from each field
-                            chr_num = mutation['CHR']
-                            cnv = mutation['CNV']
-                            interval = mutation['INTERVAL']
-                            kb = mutation['KB']
-                            mid_bp = mutation['MID_BP']
-                            targets = mutation['TARGETS']
-                            num_targ = mutation['NUM_TARG']
-                            cn = mutation['MLCN']
-                            q_some = float(mutation['Q_SOME'])
+                for mutation in mutations:
+                    try:
+                        # Extract relevant information from each field
+                        chr_num = mutation['CHR']
+                        cnv = mutation['CNV']
+                        interval = mutation['INTERVAL']
+                        kb = mutation['KB']
+                        mid_bp = mutation['MID_BP']
+                        targets = mutation['TARGETS']
+                        num_targ = mutation['NUM_TARG']
+                        cn = mutation['MLCN']
+                        q_some = float(mutation['Q_SOME'])
                         
-                            # Set reference allele to 'N'
-                            ref = 'N'
+                        # Set reference allele to 'N'
+                        ref = 'N'
                         
-                            # Set alternate allele based on CNV type
-                            alt = '<' + cnv + '>'
+                        # Set alternate allele based on CNV type
+                        alt = '<' + cnv + '>'
                         
-                            # Checks if the chromosome number in the interval matches the specified chromosome number
-                            if chr_num != interval.split(':')[0]:
-                                # Raises an error if the chromosome number in the interval does not match the specified chromosome number
-                                raise ValueError(f"Chromosome number in interval {interval} does not match the specified chromosome number {chr_num}.")
+                        # Checks if the chromosome number in the interval matches the specified chromosome number
+                        if chr_num != interval.split(':')[0]:
+                            # Raises an error if the chromosome number in the interval does not match the specified chromosome number
+                            raise ValueError(f"Chromosome number in interval {interval} does not match the specified chromosome number {chr_num}.")
                         
-                            # Start is the start of the interval and end is the end of the interval 
-                            start = int(interval.split(':')[1].split('-')[0])
-                            end = int(interval.split(':')[1].split('-')[1])
+                        # Start is the start of the interval and end is the end of the interval 
+                        start = int(interval.split(':')[1].split('-')[0])
+                        end = int(interval.split(':')[1].split('-')[1])
                         
-                            # SVLEN is the length of the structural variant
-                            svlen = end - start + 1                      
+                        # SVLEN is the length of the structural variant
+                        svlen = end - start + 1                      
                         
-                            # Set filter status based on quality scores
-                            if q_some >= 80 or q_some != 'NA':
-                                filter_status = 'PASS'
+                        # Set filter status based on quality scores
+                        if q_some >= 80 or q_some != 'NA':
+                            filter_status = 'PASS'
+                        else:
+                            filter_status = 'LowQuality'
+                        
+                        # Placeholder for strand information as CANOES does not provide strand information
+                        strands = "."
+                        
+                        # Placeholder for genotype as CANOES does not provide genotype
+                        gt = "./."
+
+                        # Write the mutation to the VCF file
+                        vcf_file.write(f"chr{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE=CNV;CN={cn};SVMETHOD=CANOES;STRANDS={strands}\tGT:Q_SOME")
+
+                        # Write 'FORMAT' values for each sample
+                        for sample in sample_order:
+                            if sample == sample_id:
+                                vcf_file.write(f"\t{gt}:{q_some if q_some else '.'}")
                             else:
-                                filter_status = 'LowQuality'
-                        
-                            # Placeholder for strand information as XHMM does not provide strand information
-                            strands = "."
-                        
-                            # Placeholder for genotype as XHMM does not provide genotype
-                            gt = "./."
-
-                            # Write the mutation to the VCF file
-                            vcf_file.write(f"chr{chr_num}\t{start}\t.\t{ref}\t{alt}\t.\t{filter_status}\tEND={end};SVLEN={svlen};SVTYPE=CNV;CN={cn};SVMETHOD=CANOES;STRANDS={strands}\tGT:Q_SOME")
-
-                            # Write 'FORMAT' values for each sample
-                            for sample in sample_order:
-                                if sample == sample_id:
-                                    vcf_file.write(f"\t{gt}:{q_some if q_some else '.'}")
-                                else:
-                                    vcf_file.write(f"\t./.:.")
-                            vcf_file.write("\n")
+                                vcf_file.write(f"\t./.:.")
+                        vcf_file.write("\n")
                     
-                        # Catches 'KeyError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'KeyError' object
-                        except KeyError as e:
-                            logging.error(f"Key error when writing mutation {mutation}: {e}")
+                    # Catches 'KeyError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'KeyError' object
+                    except KeyError as e:
+                        logging.error(f"Key error when writing mutation {mutation}: {e}")
                     
-                        # Catches 'ValueError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'ValueError' object
-                        except ValueError as e:
-                            logging.error(f"Value error when writing mutation {mutation}: {e}")
+                    # Catches 'ValueError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'ValueError' object
+                    except ValueError as e:
+                        logging.error(f"Value error when writing mutation {mutation}: {e}")
 
     # Catches 'IOError' exceptions within the corresponding 'try' block, where 'e' is specifically the 'IOError' object
     except IOError as e:
