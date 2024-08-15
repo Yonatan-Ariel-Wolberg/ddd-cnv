@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 
 
+
 def setup_logging(log_file=None):
     """
     Set up the logging configuration.
@@ -59,7 +60,7 @@ def read_sample_list(sample_file):
         logging.error(f"Error reading sample IDs from {sample_file}: {e}")
     return list(sample_set)
 
-def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_file, sample_file=None):
+def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_file, sample_file=None, fai_file=None):
     """
     Function to convert CANOES CSV files to VCF format.
 
@@ -69,7 +70,8 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
     - combined_vcf_name: The name of the combined VCF file.
     - log_file: Optional log file to record errors.
     - sample_file: Optional file containing sample IDs, one per line.
-
+    - fai_file: FASTA index file for the reference genome.
+    
     Returns:
     - The path to the combined VCF file.
     """
@@ -200,7 +202,15 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
     if combined_vcf_name:
         # Create combined VCF file name
         combined_vcf_file = os.path.join(output_dir, combined_vcf_name)
-        write_vcf_file(combined_vcf_file, mutations_by_sample, sample_order, log_file)
+        
+        # Extract reference name from FASTA index file
+        ref_name = extract_ref_name(fai_file)
+
+        # Create VCF contig lines
+        sorted_contig_lines = create_vcf_contig_lines(fai_file)
+        
+        # Write combined VCF file
+        write_vcf_file(combined_vcf_file, ref_name, sorted_contig_lines, mutations_by_sample, sample_order, log_file)
 
     # Write individual VCF files for each sample
     for sample in sample_order:
@@ -208,7 +218,9 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
             continue
         # Create individual VCF file name after sample ID
         individual_vcf_file = os.path.join(output_dir, f"{sample}.vcf")
-        write_vcf_file(individual_vcf_file, {sample: mutations_by_sample[sample]}, [sample], log_file)
+        
+        # Write individual VCF file
+        write_vcf_file(individual_vcf_file, ref_name, sorted_contig_lines, {sample: mutations_by_sample[sample]}, [sample], log_file)
 
     # Print number of samples in combined VCF file or in indivivdual VCF files
     if combined_vcf_name:
@@ -216,16 +228,81 @@ def convert_canoes_csv_to_vcf(input_file, output_dir, combined_vcf_name, log_fil
     else:
         print(f"Number of samples in individual VCF files: {len(sample_order)}")
 
+def create_vcf_contig_lines(fai_file):
+    """
+    Create VCF contig lines from FASTA index file
 
-def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None):
+    Parameters:
+        fai_file (str): Path to FASTA index file
+
+    Returns:
+        list: List of VCF contig lines
+    """
+    # List of VCF contig lines
+    contig_lines = []
+
+    # List of valid contig names
+    valid_contigs = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12', 
+                     'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21', 'chr22', 'chrX', 'chrY' 
+                    ]
+    
+    # Set of valid contig names
+    valid_contig_set = set(valid_contigs)
+
+    # Read FASTA index file
+    with open(fai_file) as fai:
+        for line in fai:
+            # Split line by tab and remove newline and whitespace
+            parts = line.strip().split("\t")
+            contig_name = parts[0]
+            contig_length = int(parts[1])
+
+            if contig_name in valid_contig_set:
+                contig_line = f"##contig=<ID={contig_name},length={contig_length}>"
+                contig_lines.append((valid_contigs.index(contig_name), contig_line))
+
+    # Sort contig lines based on the index in 'valid_contigs'
+    contig_lines.sort()
+
+    # Create a list of contig lines, sorted by contig name in 'valid_contigs'
+    sorted_contig_lines = [line for _, line in contig_lines]
+    
+    # Return list of VCF contig lines
+    return sorted_contig_lines
+
+def extract_ref_name(fai_file):
+    """
+    Extract reference name from FASTA index file
+
+    Parameters:
+        fai_file (str): Path to FASTA index file
+
+    Returns:
+        str: Reference name
+    """
+    # Get base name of FASTA index file
+    base_name = os.path.basename(fai_file)
+
+    # Remove last file extension
+    base_name_no_ext = base_name.rsplit('.', 1)[0]
+    # Remove second last file extension
+    base_name_no_ext2 = base_name_no_ext.rsplit('.', 1)[0]
+    # Remove third last file extension
+    ref_name = base_name_no_ext2.rsplit('.', 1)[0]
+
+    return ref_name
+
+def write_vcf_file(output_file, ref_name, sorted_contig_lines, mutations_by_sample, sample_order, log_file=None):
     """
     Write mutations to a VCF file
 
     Parameters:
-        output_file (str): Output VCF file path
-        mutations_by_sample (dict): Dictionary of mutations by sample
-        sample_order (list): List of sample IDs in the same order as mutations_by_sample
-        log_file (str, optional): Path to log file. Defaults to None.
+        - output_file (str): Output VCF file path
+        - fai_file (str): Path to FASTA index file
+        - sorted_contig_lines (list): List of VCF contig lines
+        - mutations_by_sample (dict): Dictionary of mutations by sample
+        - sample_order (list): List of sample IDs in the same order as mutations_by_sample
+        - log_file (str, optional): Path to log file. Defaults to None.
     """
     
     # Setup logging if log_file is provided
@@ -240,12 +317,14 @@ def write_vcf_file(output_file, mutations_by_sample, sample_order, log_file=None
             vcf_file.write("##fileformat=VCFv4.1\n")
             vcf_file.write("##fileDate=" + datetime.now().strftime("%d%m%Y") + "\n")
             vcf_file.write("##source=CANOES-CSVToVcfConverter\n")
-            vcf_file.write("##reference=GRCh37.p13\n")
+            # Write reference to VCF file
+            vcf_file.write(f"##reference={ref_name}\n")
             vcf_file.write("##phasing=partial\n")
-            for i in range(1, 23):
-                vcf_file.write(f"##contig=<ID=chr{i}>\n")
-            vcf_file.write("##contig=<ID=chrX>\n")
-            vcf_file.write("##contig=<ID=chrY>\n")
+
+            # Write contig lines to VCF file
+            for line in sorted_contig_lines:
+                vcf_file.write(line + "\n")
+
             vcf_file.write("##ALT=<ID=DEL,Description=\"Deletion\">\n")
             vcf_file.write("##ALT=<ID=DUP,Description=\"Duplication\">\n")
             vcf_file.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the structural variant\">\n")
@@ -362,12 +441,13 @@ def main():
     parser.add_argument('-c', '--combined_vcf_name', type=str, help='Name for the combined VCF file')
     parser.add_argument('-l', '--log_file', type=str, help='Name for the log file to record errors and issues')
     parser.add_argument('-s', '--sample_file', type=str, help='File containing sample IDs')
+    parser.add_argument('-f', '--fai_file', type=str, help='FASTA index file for the reference genome')
 
     # Parse the arguments and store them in args
     args = parser.parse_args()
 
     # Call the convert_canoes_csv_to_vcf function with the parsed arguments
-    convert_canoes_csv_to_vcf(args.input, args.output_dir, args.combined_vcf_name, args.log_file, args.sample_file)
+    convert_canoes_csv_to_vcf(args.input, args.output_dir, args.combined_vcf_name, args.log_file, args.sample_file, args.fai_file)
 
 # Main function execution
 # Script will only run if exectuted and not run as a module
